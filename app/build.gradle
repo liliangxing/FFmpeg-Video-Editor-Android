@@ -3,7 +3,6 @@ apply plugin: 'com.android.application'
 android {
     namespace 'videoeditor.bhuvnesh.com.ffmpegvideoeditor'
     compileSdkVersion 25
-    buildToolsVersion "25.0.2"
     defaultConfig {
         applicationId "videoeditor.bhuvnesh.com.ffmpegvideoeditor"
         minSdkVersion 16
