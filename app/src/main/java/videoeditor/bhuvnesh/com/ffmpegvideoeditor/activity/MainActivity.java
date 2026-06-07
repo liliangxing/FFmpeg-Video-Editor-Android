@@ -105,34 +105,6 @@ public class MainActivity extends AppCompatActivity {
         progressDialog.setCancelable(false);
         rangeSeekBar.setEnabled(false);
         loadFFMpegBinary();
-    }
-
-    private void initLogFile() {
-        try {
-            File logDir = new File(Environment.getExternalStorageDirectory(), "VideoEditor/Log");
-            if (!logDir.exists()) logDir.mkdirs();
-            logFile = new File(logDir, "videoEdit.log");
-            writeLog("=== App Started ===");
-            writeLog("Android " + Build.VERSION.RELEASE + " SDK " + Build.VERSION.SDK_INT);
-        } catch (Exception e) {
-            e.printStackTrace();
-        }
-    }
-
-    private void writeLog(String msg) {
-        try {
-            if (logFile != null) {
-                String ts = new SimpleDateFormat("yyyy-MM-dd HH:mm:ss", Locale.getDefault()).format(new Date());
-                FileWriter w = new FileWriter(logFile, true);
-                w.append("[").append(ts).append("] ").append(msg).append("\n");
-                w.flush();
-                w.close();
-            }
-            Log.d(TAG, msg);
-        } catch (Exception e) {
-            e.printStackTrace();
-        }
-    }
 
         uploadVideo.setOnClickListener(new View.OnClickListener() {
             @Override
@@ -258,6 +230,33 @@ public class MainActivity extends AppCompatActivity {
                     Snackbar.make(mainlayout, "Please upload a video", 4000).show();
             }
         });
+    }
+
+    private void initLogFile() {
+        try {
+            File logDir = new File(Environment.getExternalStorageDirectory(), "VideoEditor/Log");
+            if (!logDir.exists()) logDir.mkdirs();
+            logFile = new File(logDir, "videoEdit.log");
+            writeLog("=== App Started ===");
+            writeLog("Android " + Build.VERSION.RELEASE + " SDK " + Build.VERSION.SDK_INT);
+        } catch (Exception e) {
+            e.printStackTrace();
+        }
+    }
+
+    private void writeLog(String msg) {
+        try {
+            if (logFile != null) {
+                String ts = new SimpleDateFormat("yyyy-MM-dd HH:mm:ss", Locale.getDefault()).format(new Date());
+                FileWriter w = new FileWriter(logFile, true);
+                w.append("[").append(ts).append("] ").append(msg).append("\n");
+                w.flush();
+                w.close();
+            }
+            Log.d(TAG, msg);
+        } catch (Exception e) {
+            e.printStackTrace();
+        }
     }
 
     private void getPermission() {
