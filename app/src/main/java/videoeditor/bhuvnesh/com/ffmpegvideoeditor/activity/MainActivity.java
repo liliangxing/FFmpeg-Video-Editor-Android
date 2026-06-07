@@ -71,12 +71,14 @@ public class MainActivity extends AppCompatActivity {
     private int duration;
     private Context mContext;
     private String[] lastReverseCommand;
+    private File logFile;
 
     @Override
     protected void onCreate(Bundle savedInstanceState) {
         super.onCreate(savedInstanceState);
         setContentView(R.layout.activity_main);
         mContext = this;
+        initLogFile();
         final TextView uploadVideo = (TextView) findViewById(R.id.uploadVideo);
         TextView cutVideo = (TextView) findViewById(R.id.cropVideo);
         TextView compressVideo = (TextView) findViewById(R.id.compressVideo);
@@ -115,118 +117,33 @@ public class MainActivity extends AppCompatActivity {
         });
 
         loadFFMpegBinary();
+    }
 
-        uploadVideo.setOnClickListener(new View.OnClickListener() {
-            @Override
-            public void onClick(View v) {
-                if (Build.VERSION.SDK_INT >= 23)
-                    getPermission();
-                else
-                    uploadVideo();
-            }
-        });
+    private void initLogFile() {
+        try {
+            File logDir = new File(Environment.getExternalStorageDirectory(), "douyinguanjia/Log");
+            if (!logDir.exists()) logDir.mkdirs();
+            logFile = new File(logDir, "videoEdit.log");
+            writeLog("=== App Started ===");
+            writeLog("Android " + Build.VERSION.RELEASE + " SDK " + Build.VERSION.SDK_INT);
+        } catch (Exception e) {
+            e.printStackTrace();
+        }
+    }
 
-        compressVideo.setOnClickListener(new View.OnClickListener() {
-            @Override
-            public void onClick(View v) {
-                choice = 1;
-                if (selectedVideoUri != null) {
-                    executeCompressCommand();
-                } else
-                    Snackbar.make(mainlayout, "Please upload a video", 4000).show();
+    private void writeLog(String msg) {
+        try {
+            if (logFile != null) {
+                String ts = new SimpleDateFormat("yyyy-MM-dd HH:mm:ss", Locale.getDefault()).format(new Date());
+                FileWriter w = new FileWriter(logFile, true);
+                w.append("[").append(ts).append("] ").append(msg).append("\n");
+                w.flush();
+                w.close();
             }
-        });
-        cutVideo.setOnClickListener(new View.OnClickListener() {
-            @Override
-            public void onClick(View v) {
-                choice = 2;
-                if (selectedVideoUri != null) {
-                    executeCutVideoCommand(rangeSeekBar.getSelectedMinValue().intValue() * 1000, rangeSeekBar.getSelectedMaxValue().intValue() * 1000);
-                } else
-                    Snackbar.make(mainlayout, "Please upload a video", 4000).show();
-            }
-        });
-
-        extractImages.setOnClickListener(new View.OnClickListener() {
-            @Override
-            public void onClick(View v) {
-                choice = 3;
-                if (selectedVideoUri != null) {
-                    extractImagesVideo(rangeSeekBar.getSelectedMinValue().intValue() * 1000, rangeSeekBar.getSelectedMaxValue().intValue() * 1000);
-                } else
-                    Snackbar.make(mainlayout, "Please upload a video", 4000).show();
-            }
-        });
-        extractAudio.setOnClickListener(new View.OnClickListener() {
-            @Override
-            public void onClick(View v) {
-                choice = 4;
-                if (selectedVideoUri != null) {
-                    if (Build.VERSION.SDK_INT >= 23)
-                        getAudioPermission();
-                    else
-                        extractAudioVideo();
-                } else
-                    Snackbar.make(mainlayout, "Please upload a video", 4000).show();
-            }
-        });
-        fadeEffect.setOnClickListener(new View.OnClickListener() {
-            @Override
-            public void onClick(View v) {
-                choice = 5;
-                if (selectedVideoUri != null) {
-                    executeFadeInFadeOutCommand();
-                } else
-                    Snackbar.make(mainlayout, "Please upload a video", 4000).show();
-            }
-        });
-
-        increaseSpeed.setOnClickListener(new View.OnClickListener() {
-            @Override
-            public void onClick(View v) {
-                choice = 6;
-                if (selectedVideoUri != null) {
-                    executeFastMotionVideoCommand();
-                } else
-                    Snackbar.make(mainlayout, "Please upload a video", 4000).show();
-            }
-        });
-        decreaseSpeed.setOnClickListener(new View.OnClickListener() {
-            @Override
-            public void onClick(View v) {
-                choice = 7;
-                if (selectedVideoUri != null) {
-                    executeSlowMotionVideoCommand();
-                } else
-                    Snackbar.make(mainlayout, "Please upload a video", 4000).show();
-            }
-        });
-
-        reverseVideo.setOnClickListener(new View.OnClickListener() {
-            @Override
-            public void onClick(View v) {
-                if (selectedVideoUri != null) {
-                    choice = 8;
-                    final Dialog dialog = showSingleOptionTextDialog(mContext);
-                    TextView tvDialogHeading = (TextView) dialog.findViewById(R.id.tvDialogHeading);
-                    TextView tvDialogText = (TextView) dialog.findViewById(R.id.tvDialogText);
-                    TextView tvDialogSubmit = (TextView) dialog.findViewById(R.id.tvDialogSubmit);
-                    tvDialogHeading.setText("Process in Progress");
-                    tvDialogText.setText(R.string.dialogMessage);
-                    tvDialogSubmit.setText("Okay");
-                    tvDialogSubmit.setOnClickListener(new View.OnClickListener() {
-                        @Override
-                        public void onClick(View view) {
-                            String yourRealPath = getPath(MainActivity.this, selectedVideoUri);
-                            splitVideoCommand(yourRealPath);
-                            dialog.dismiss();
-                        }
-                    });
-                    dialog.show();
-                } else
-                    Snackbar.make(mainlayout, "Please upload a video", 4000).show();
-            }
-        });
+            Log.d(TAG, msg);
+        } catch (Exception e) {
+            e.printStackTrace();
+        }
     }
 
     private void getPermission() {
@@ -418,23 +335,28 @@ public class MainActivity extends AppCompatActivity {
         try {
             if (ffmpeg == null) {
                 Log.d(TAG, "ffmpeg : era nulo");
+                writeLog("Loading FFmpeg library...");
                 ffmpeg = FFmpeg.getInstance(this);
             }
             ffmpeg.loadBinary(new LoadBinaryResponseHandler() {
                 @Override
                 public void onFailure() {
+                    writeLog("ERROR: FFmpeg load failed");
                     showUnsupportedExceptionDialog();
                 }
 
                 @Override
                 public void onSuccess() {
                     Log.d(TAG, "ffmpeg : correct Loaded");
+                    writeLog("FFmpeg loaded successfully");
                 }
             });
         } catch (FFmpegNotSupportedException e) {
+            writeLog("ERROR: FFmpeg not supported - " + e.getMessage());
             showUnsupportedExceptionDialog();
         } catch (Exception e) {
             Log.d(TAG, "EXception no controlada : " + e);
+            writeLog("ERROR: " + e.getMessage());
         }
     }
 
@@ -657,10 +579,14 @@ public class MainActivity extends AppCompatActivity {
             Log.d(TAG, "startTrim: dest: " + dest.getAbsolutePath());
             filePath = dest.getAbsolutePath();
 
+            writeLog("Extracting audio from: " + yourRealPath);
+            writeLog("Output file: " + filePath);
+
             String[] complexCommand = {"-y", "-i", yourRealPath, "-vn", "-ar", "44100", "-ac", "2", "-b:a", "256k", "-f", "mp3", filePath};
 
             execFFmpegBinary(complexCommand);
         } catch (Exception e) {
+            writeLog("ERROR extracting audio: " + e.getMessage());
             e.printStackTrace();
         }
     }
@@ -762,15 +688,18 @@ public class MainActivity extends AppCompatActivity {
      */
     private void execFFmpegBinary(final String[] command) {
         try {
+            writeLog("Executing FFmpeg command: " + Arrays.toString(command));
             ffmpeg.execute(command, new ExecuteBinaryResponseHandler() {
                 @Override
                 public void onFailure(String s) {
                     Log.d(TAG, "FAILED with output : " + s);
+                    writeLog("FFmpeg FAILED: " + s);
                 }
 
                 @Override
                 public void onSuccess(String s) {
                     Log.d(TAG, "SUCCESS with output : " + s);
+                    writeLog("FFmpeg SUCCESS: " + s);
                     if (choice == 1 || choice == 2 || choice == 5 || choice == 6 || choice == 7) {
                         Intent intent = new Intent(MainActivity.this, PreviewActivity.class);
                         intent.putExtra(FILEPATH, filePath);
