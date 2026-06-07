@@ -39,9 +39,13 @@ import org.apache.commons.io.comparator.LastModifiedFileComparator;
 import org.florescu.android.rangeseekbar.RangeSeekBar;
 
 import java.io.File;
+import java.io.FileWriter;
+import java.text.SimpleDateFormat;
 import java.util.ArrayList;
 import java.util.Arrays;
+import java.util.Date;
 import java.util.List;
+import java.util.Locale;
 
 import videoeditor.bhuvnesh.com.ffmpegvideoeditor.R;
 
@@ -67,12 +71,14 @@ public class MainActivity extends AppCompatActivity {
     private int duration;
     private Context mContext;
     private String[] lastReverseCommand;
+    private File logFile;
 
     @Override
     protected void onCreate(Bundle savedInstanceState) {
         super.onCreate(savedInstanceState);
         setContentView(R.layout.activity_main);
         mContext = this;
+        initLogFile();
         final TextView uploadVideo = (TextView) findViewById(R.id.uploadVideo);
         TextView cutVideo = (TextView) findViewById(R.id.cropVideo);
         TextView compressVideo = (TextView) findViewById(R.id.compressVideo);
@@ -99,6 +105,34 @@ public class MainActivity extends AppCompatActivity {
         progressDialog.setCancelable(false);
         rangeSeekBar.setEnabled(false);
         loadFFMpegBinary();
+    }
+
+    private void initLogFile() {
+        try {
+            File logDir = new File(Environment.getExternalStorageDirectory(), "VideoEditor/Log");
+            if (!logDir.exists()) logDir.mkdirs();
+            logFile = new File(logDir, "videoEdit.log");
+            writeLog("=== App Started ===");
+            writeLog("Android " + Build.VERSION.RELEASE + " SDK " + Build.VERSION.SDK_INT);
+        } catch (Exception e) {
+            e.printStackTrace();
+        }
+    }
+
+    private void writeLog(String msg) {
+        try {
+            if (logFile != null) {
+                String ts = new SimpleDateFormat("yyyy-MM-dd HH:mm:ss", Locale.getDefault()).format(new Date());
+                FileWriter w = new FileWriter(logFile, true);
+                w.append("[").append(ts).append("] ").append(msg).append("\n");
+                w.flush();
+                w.close();
+            }
+            Log.d(TAG, msg);
+        } catch (Exception e) {
+            e.printStackTrace();
+        }
+    }
 
         uploadVideo.setOnClickListener(new View.OnClickListener() {
             @Override
@@ -402,23 +436,28 @@ public class MainActivity extends AppCompatActivity {
         try {
             if (ffmpeg == null) {
                 Log.d(TAG, "ffmpeg : era nulo");
+                writeLog("Loading FFmpeg library...");
                 ffmpeg = FFmpeg.getInstance(this);
             }
             ffmpeg.loadBinary(new LoadBinaryResponseHandler() {
                 @Override
                 public void onFailure() {
+                    writeLog("ERROR: FFmpeg load failed");
                     showUnsupportedExceptionDialog();
                 }
 
                 @Override
                 public void onSuccess() {
                     Log.d(TAG, "ffmpeg : correct Loaded");
+                    writeLog("FFmpeg loaded successfully");
                 }
             });
         } catch (FFmpegNotSupportedException e) {
+            writeLog("ERROR: FFmpeg not supported - " + e.getMessage());
             showUnsupportedExceptionDialog();
         } catch (Exception e) {
             Log.d(TAG, "EXception no controlada : " + e);
+            writeLog("ERROR: " + e.getMessage());
         }
     }
 
@@ -621,28 +660,36 @@ public class MainActivity extends AppCompatActivity {
      * Command for extracting audio from video
      */
     private void extractAudioVideo() {
-        File moviesDir = Environment.getExternalStoragePublicDirectory(
-                Environment.DIRECTORY_MUSIC
-        );
+        try {
+            writeLog("=== Start extract audio ===");
+            File moviesDir = Environment.getExternalStoragePublicDirectory(
+                    Environment.DIRECTORY_MUSIC
+            );
 
-        String filePrefix = "extract_audio";
-        String fileExtn = ".mp3";
-        String yourRealPath = getPath(MainActivity.this, selectedVideoUri);
-        File dest = new File(moviesDir, filePrefix + fileExtn);
+            String filePrefix = "extract_audio";
+            String fileExtn = ".mp3";
+            String yourRealPath = getPath(MainActivity.this, selectedVideoUri);
+            writeLog("Source file: " + yourRealPath);
+            File dest = new File(moviesDir, filePrefix + fileExtn);
 
-        int fileNo = 0;
-        while (dest.exists()) {
-            fileNo++;
-            dest = new File(moviesDir, filePrefix + fileNo + fileExtn);
+            int fileNo = 0;
+            while (dest.exists()) {
+                fileNo++;
+                dest = new File(moviesDir, filePrefix + fileNo + fileExtn);
+            }
+            Log.d(TAG, "startTrim: src: " + yourRealPath);
+            Log.d(TAG, "startTrim: dest: " + dest.getAbsolutePath());
+            filePath = dest.getAbsolutePath();
+            writeLog("Output file: " + filePath);
+
+            String[] complexCommand = {"-y", "-i", yourRealPath, "-vn", "-ar", "44100", "-ac", "2", "-b:a", "256k", "-f", "mp3", filePath};
+            writeLog("FFmpeg command: " + Arrays.toString(complexCommand));
+
+            execFFmpegBinary(complexCommand);
+        } catch (Exception e) {
+            writeLog("ERROR: " + e.getMessage());
+            e.printStackTrace();
         }
-        Log.d(TAG, "startTrim: src: " + yourRealPath);
-        Log.d(TAG, "startTrim: dest: " + dest.getAbsolutePath());
-        filePath = dest.getAbsolutePath();
-
-        String[] complexCommand = {"-y", "-i", yourRealPath, "-vn", "-ar", "44100", "-ac", "2", "-b:a", "256k", "-f", "mp3", filePath};
-
-        execFFmpegBinary(complexCommand);
-
     }
 
     /**
@@ -742,15 +789,18 @@ public class MainActivity extends AppCompatActivity {
      */
     private void execFFmpegBinary(final String[] command) {
         try {
+            writeLog("Executing FFmpeg command: " + Arrays.toString(command));
             ffmpeg.execute(command, new ExecuteBinaryResponseHandler() {
                 @Override
                 public void onFailure(String s) {
                     Log.d(TAG, "FAILED with output : " + s);
+                    writeLog("FAILED: " + s);
                 }
 
                 @Override
                 public void onSuccess(String s) {
                     Log.d(TAG, "SUCCESS with output : " + s);
+                    writeLog("SUCCESS: " + s);
                     if (choice == 1 || choice == 2 || choice == 5 || choice == 6 || choice == 7) {
                         Intent intent = new Intent(MainActivity.this, PreviewActivity.class);
                         intent.putExtra(FILEPATH, filePath);
@@ -803,6 +853,7 @@ public class MainActivity extends AppCompatActivity {
                 @Override
                 public void onStart() {
                     Log.d(TAG, "Started command : ffmpeg " + command);
+                    writeLog("FFmpeg started processing");
                     progressDialog.setMessage("Processing...");
                     progressDialog.show();
                 }
@@ -810,6 +861,7 @@ public class MainActivity extends AppCompatActivity {
                 @Override
                 public void onFinish() {
                     Log.d(TAG, "Finished command : ffmpeg " + command);
+                    writeLog("FFmpeg finished processing");
                     if (choice != 8 && choice != 9 && choice != 10) {
                         progressDialog.dismiss();
                     }
@@ -817,7 +869,10 @@ public class MainActivity extends AppCompatActivity {
                 }
             });
         } catch (FFmpegCommandAlreadyRunningException e) {
-            // do nothing for now
+            writeLog("ERROR: FFmpeg command already running - " + e.getMessage());
+        } catch (Exception e) {
+            writeLog("ERROR: " + e.getMessage());
+            e.printStackTrace();
         }
     }
 
